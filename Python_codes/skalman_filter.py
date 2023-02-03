@@ -4,10 +4,11 @@ import os
 import numpy as np
 import scipy
 from scipy import special
+from typing import Callable
 
 
 # Normal pdf -- univariate
-def phip(z_val):
+def phip(z_val: float) -> float:
 
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
 
@@ -17,7 +18,7 @@ def phip(z_val):
 
 
 # Normal cdf -- univariate
-def phid(z_val):
+def phid(z_val: float) -> float:
 
     #
     # taken from Alan Gentz procedures.
@@ -30,7 +31,10 @@ def phid(z_val):
 
 
 # Mendel-Elston method for Normal cdf approximation
-def logcdf_ME(Zj, Corr_mat):
+def logcdf_ME(
+        Zj: np.ndarray[float],
+        Corr_mat: np.ndarray[float]
+) -> float:
 
     # cdf_ME  : Evaluate approximate log(CDF) according to Mendell Elston
     # Zj      : A column vector (a numpy array of dimension two)
@@ -94,7 +98,18 @@ def logcdf_ME(Zj, Corr_mat):
     return log_res
 
 
-def dim_red4(Sigma, Gamma, nu, Delta, cut_tol):
+def dim_red4(
+        Sigma: np.ndarray[float], 
+        Gamma: np.ndarray[float], 
+        nu: np.ndarray[float], 
+        Delta: np.ndarray[float], 
+        cut_tol: float
+) -> tuple[
+    np.ndarray[float], 
+    np.ndarray[float], 
+    np.ndarray[float], 
+    np.ndarray[float]
+]:
 
     # Reduces the dimension of csn
     # according to the correlations of the conditions
@@ -138,27 +153,27 @@ def dim_red4(Sigma, Gamma, nu, Delta, cut_tol):
 
 
 def kalman_csn(
-    Y,
-    mu_tm1_tm1,
-    Sigma_tm1_tm1,
-    Gamma_tm1_tm1,
-    nu_tm1_tm1,
-    Delta_tm1_tm1,
-    G,
-    R,
-    F,
-    mu_eta,
-    Sigma_eta,
-    Gamma_eta,
-    nu_eta,
-    Delta_eta,
-    mu_eps,
-    Sigma_eps,
-    cut_tol=1e-2,
-    eval_lik=True,
-    ret_pred_filt=False,
-    logcdfmvna_fct=logcdf_ME,
-):
+    Y: np.ndarray[float],
+    mu_tm1_tm1: np.ndarray[float],
+    Sigma_tm1_tm1: np.ndarray[float],
+    Gamma_tm1_tm1: np.ndarray[float],
+    nu_tm1_tm1: np.ndarray[float],
+    Delta_tm1_tm1: np.ndarray[float],
+    G: np.ndarray[float],
+    R: np.ndarray[float],
+    F: np.ndarray[float],
+    mu_eta: np.ndarray[float],
+    Sigma_eta: np.ndarray[float],
+    Gamma_eta: np.ndarray[float],
+    nu_eta: np.ndarray[float],
+    Delta_eta: np.ndarray[float],
+    mu_eps: np.ndarray[float],
+    Sigma_eps: np.ndarray[float],
+    cut_tol: float = 1e-2,
+    eval_lik: bool = True,
+    ret_pred_filt: bool = False,
+    logcdfmvna_fct: Callable = logcdf_ME,
+) -> tuple[float, dict, dict]:
 
     """
     -------------------------------------------------------------------------

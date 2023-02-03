@@ -315,3 +315,6 @@ octave-workspace
 # MacOs files
 *.DS_Store
 .vscode/
+
+# Python files and folder
+__pycache__
