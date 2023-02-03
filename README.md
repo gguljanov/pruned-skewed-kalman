@@ -29,19 +29,18 @@ All preceding functions are used by `kalman_csn()`.
 
 Data generating process is the following state-space model:
 
-$
+```math
     Y_t = F X_t + \epsilon_t, ~~~ 
     \epsilon_t \sim N(\mu_\epsilon, \Sigma_\epsilon), ~~~
     \rightarrow \text{measurement equation}
-$
-
-$
+```
+```math
     X_t = G X_{t-1} + R \eta_t, ~~~
     \eta_t \sim CSN(
         \mu_\eta, \Sigma_\eta, \Gamma_\eta, \nu_\eta, \Delta_\eta
     ), ~~~
     \rightarrow \text{state equation}
-$
+```
 
 $Y_t$ is **y_nbr** dimensional observable random variable. <br>
 $X_t$ is **x_nbr** dimensional latent random (state) variable. <br>
