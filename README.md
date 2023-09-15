@@ -14,13 +14,16 @@ The complete replications codes for this paper is given at
 In this repo, the following functions are present for each language:
 - `phip()`: Evaluates the univariate 
 Normal probability density function
-- `phip()`: Evaluates the univariate 
+- `phid()`: Evaluates the univariate 
 Normal cumulative density function
 - `logcdf_ME()`: Evaluates the multivariate 
 Normal cumulative density function
 - `dim_red4()`: Reduces the skewness dimension of csn 
 based on correlations
 - `kalman_csn()`: Evaluates the log-likelihood using PSKF
+
+`phip()`, `phid()` and `logcdf_ME()` functions are slightly modified versions 
+of `phip()`, `phid()` and `mcdfmvna_ME()` functions by @dbauer72, Dietmar Bauer, see [the repo](https://github.com/dbauer72/MaCML-MATLAB-Code).
 
 All preceding functions are used by `kalman_csn()`.
 
