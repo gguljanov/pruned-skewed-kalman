@@ -13,33 +13,27 @@ breakpoint(abs)
 
 
 function add(a, b)
-
     z = a + b
 
     return z
-
 end
 
 function subtract(a::T) where T<:Real
-
     z = a - 2 
 
     return z
-
 end
 
 
 function disp(fun, a, b)
-
     if fun == add
         print(fun(a, b))
     elseif fun == subtract
         print(fun(a))
         print(fun(b))
     else
-        print("Give a damn correct function")
+        print("Give a correct function")
     end
-
 end
 
 c = disp(add, 3, 2)

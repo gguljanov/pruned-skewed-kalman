@@ -6,13 +6,11 @@ using Distributions
 # Normal PDF
 # 
 function phip(z::T) where T<:Real
-
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
 
     p = ℯ^(-z^2 / 2) / √(2π) # Normal pdf
 
     return p
-
 end
 
 
@@ -20,7 +18,6 @@ end
 # Normal CDF
 # 
 function phid(z::T) where T<:Real
-
     # 
     # taken from Alan Gentz procedures.
     # 
@@ -29,12 +26,10 @@ function phid(z::T) where T<:Real
     p = erfc(-z / √2) / 2 # Normal cdf
 
     return p
-
 end
 
 
 function logcdf_ME(Zj, Corr_mat)
-
     # cdf_ME  : Evaluate approximate log(CDF) according to Mendell Elston
     # Zj : A column vector of points where CDF is evaluated, of size (len_cdf)
     #  Corr_mat: Correlation matrix of size (len_cdf) x (len_cdf)
@@ -54,7 +49,6 @@ function logcdf_ME(Zj, Corr_mat)
     log_res = log(cdf_val) # perform all calcs in logs.
 
     for _ ∈ 1:(len_cdf-1)
-
         ajjm1 = pdf_val / cdf_val
 
         # Update Zj and Rij
@@ -86,16 +80,13 @@ function logcdf_ME(Zj, Corr_mat)
 
         # Overall probability
         log_res = log_res + log(cdf_val)
-
     end
 
     return log_res
-
 end
 
 
 function dim_red4(Sigma, Gamma, nu, Delta, cut_tol)
-
     # Reduces the dimension of csn 
     # according to the correlations of the conditions
 
@@ -109,10 +100,9 @@ function dim_red4(Sigma, Gamma, nu, Delta, cut_tol)
     n2 = size(P)[1];
 
     try
-
         stdnrd = diagm(1 ./ sqrt.(diag(P)));
-        Pcorr  = abs.(stdnrd * P * stdnrd);
 
+        Pcorr  = abs.(stdnrd * P * stdnrd);
     catch
         
         Sigma = 0;
@@ -121,7 +111,6 @@ function dim_red4(Sigma, Gamma, nu, Delta, cut_tol)
         Delta = 0;
         
         return Sigma, Gamma, nu, Delta
-
     end
 
     Pcorr = Pcorr - Matrix(Inf*I, n2, n2)
@@ -137,7 +126,6 @@ function dim_red4(Sigma, Gamma, nu, Delta, cut_tol)
     Delta = Delta[:, logi2]
 
     return Sigma, Gamma, nu, Delta
-
 end
 
 
@@ -311,7 +299,6 @@ function (kalman_csn(;
     filt = NaN
 
     if ret_pred_filt
-
         # initialize "pred" dictionary to save parameters of predicted states
         pred = Dict([("mu", Array{T,2}(undef, x_nbr, obs_nbr)),
             ("Sigma", Array{T,3}(undef, x_nbr, x_nbr, obs_nbr)),
@@ -319,21 +306,18 @@ function (kalman_csn(;
             ("nu", Array{Any,1}(undef, obs_nbr)),
             ("Delta", Array{Any,1}(undef, obs_nbr))])
 
-
         # initialize "filt" dictionary to save parameters of filtered states
         filt = Dict([("mu", Array{T,2}(undef, x_nbr, obs_nbr)),
             ("Sigma", Array{T,3}(undef, x_nbr, x_nbr, obs_nbr)),
             ("Gamma", Array{Any,1}(undef, obs_nbr)),
             ("nu", Array{Any,1}(undef, obs_nbr)),
             ("Delta", Array{Any,1}(undef, obs_nbr))])
-
     end
 
     log_lik_t = zeros(obs_nbr, 1) # vector of likelihood contributions
     log_lik = -Inf # default value of log likelihood
 
     for t ∈ 1:obs_nbr
-
         # Auxiliary matrices
         Gamma_tm1_tm1_X_Sigma_tm1_tm1 = Gamma_tm1_tm1 * Sigma_tm1_tm1
         Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT = Gamma_tm1_tm1_X_Sigma_tm1_tm1 * G'
@@ -408,7 +392,6 @@ function (kalman_csn(;
         badly_conditioned_Omega = false
 
         if rescale_prediction_error_covariance
-
             sig = sqrt.(diag(Omega))
 
             if (
@@ -420,13 +403,9 @@ function (kalman_csn(;
                 badly_conditioned_Omega = true
 
                 @warn "badly_conditioned_Omega"
-
             end
-
         else
-
             if 1/cond(Omega, 1) < kalman_tol
-
                 sig = sqrt.(diag(Omega))
 
                 if (
@@ -434,65 +413,49 @@ function (kalman_csn(;
                     ||
                     cond((Omega ./ (sig * sig')), 1) < kalman_tol
                 )
-
                     badly_conditioned_Omega = true
 
                     @warn "badly_conditioned_Omega"
-
                 else
-
                     rescale_prediction_error_covariance = 1
 
                     @warn "set rescale_prediction_error_covariance to 1"
-
                 end
-
             end
-
         end
 
         if badly_conditioned_Omega
-
             if !all(abs.(Omega) .< kalman_tol)
-
                 # Use univariate filter 
                 # (will remove observations with zero variance prediction error)
                 @warn "univariate filter not yet for CSN"
-
             else
-
                 # Pathological case, discard draw.
                 @warn "discard draw due to badly_conditioned_Omega"
-
             end
 
             return log_lik, pred, filt
-
         end
 
         Omega_singular = false
 
         if rescale_prediction_error_covariance
-
             log_detOmega = log(det(Omega ./ (sig * sig'))) + 2 * sum(log(sig))
+
             invOmega = inv(Omega ./ (sig * sig')) ./ (sig * sig')
+
             rescale_prediction_error_covariance = rescale_prediction_error_covariance0
-
         else
-
             log_detOmega = log(det(Omega))
 
             invOmega = inv(Omega)
-
         end
 
         K_Gauss = Sigma_t_tm1 * F' * invOmega
-
         K_Skewed = Gamma_t_tm1 * K_Gauss
 
         # log-likelihood contributions
         if eval_lik
-
             # The conditional distribution of y[t] given y[t-1] is:
             # (y[t]|y[t-1]) ~ CSN(mu_y, Sigma_y, Gamma_y, nu_y, Delta_y)
             #               = mvncdf(Gamma_y*(y[t]-mu_y), nu_y, Delta_y) 
@@ -534,9 +497,7 @@ function (kalman_csn(;
             cdf_bottom_cov = 0.5 * (cdf_bottom_cov + cdf_bottom_cov')
 
             if logcdfmvna_fct != logcdf_ME
-
                 @error "Only logcdf_ME has been implemented for now"
-
             end
 
             # Evaluate the bottom cdf
@@ -588,7 +549,6 @@ function (kalman_csn(;
                 x_filt = nan
                 return log_lik, pred, filt
             end
-
         end
 
         # Filtering step
@@ -613,7 +573,6 @@ function (kalman_csn(;
         Delta_tm1_tm1 = Delta_t_t
 
         if ret_pred_filt
-
             # save the parameters of the predicted and filtered csn states
             pred["mu"][:, t] = mu_t_tm1
             pred["Sigma"][:, :, t] = Sigma_t_tm1
@@ -626,9 +585,7 @@ function (kalman_csn(;
             filt["Gamma"][t] = Gamma_t_t
             filt["nu"][t] = nu_t_t
             filt["Delta"][t] = Delta_t_t
-
         end
-
     end
 
     if Omega_singular
@@ -639,6 +596,4 @@ function (kalman_csn(;
     log_lik = sum(log_lik_t)
 
     return log_lik, pred, filt
-
 end # main function end
-

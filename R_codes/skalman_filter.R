@@ -1,39 +1,33 @@
-
 phip <- function(z) {
-
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
 
-    p <- exp(-z^2 / 2) / sqrt(2 * pi)  # Normal pdf
+    p <- exp(-z^2 / 2) / sqrt(2 * pi) # Normal pdf
 
     return(p)
-
 }
 
 
 phid <- function(z) {
-
     #
     # taken from Alan Gentz procedures.
     #
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
 
-    p <- erfc(-z / sqrt(2)) / 2  # Normal cdf
+    p <- erfc(-z / sqrt(2)) / 2 # Normal cdf
 
     return(p)
-
 }
 
 
 logcdf_ME <- function(Zj, Corr_mat) {
-
-    # cdf_ME  : Evaluate approximate log(CDF) according to Mendell Elston
-    # Zj      : A column vector of points where CDF is evaluated, of size (len_cdf)
+    # cdf_ME: Evaluate approximate log(CDF) according to Mendell Elston
+    # Zj: A column vector of points where CDF is evaluated, of size (len_cdf)
     # Corr_mat: Correlation matrix of size (len_cdf) x (len_cdf)
-    #
+
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
 
-    source("phip.R") #Univariate normal pdf
-    source("phid.R") #Univariate normal cdf
+    source("phip.R") # Univariate normal pdf
+    source("phid.R") # Univariate normal cdf
     library(pracma)
 
     cutoff <- 6
@@ -53,14 +47,13 @@ logcdf_ME <- function(Zj, Corr_mat) {
     }
 
     for (jj in 1:(len_cdf - 1)) {
-
         ajjm1 <- pdf_val / cdf_val
 
         # Update Zj and Rij
-        tZ <- Zj + ajjm1 * Corr_mat[, 1, drop = FALSE]    # update Zj
+        tZ <- Zj + ajjm1 * Corr_mat[, 1, drop = FALSE] # update Zj
 
         R_jj <- Corr_mat[, 1, drop = FALSE] %*% Corr_mat[1, , drop = FALSE]
-        tRij <- Corr_mat - R_jj * (ajjm1 + Zj[1, 1]) * ajjm1    # update Rij
+        tRij <- Corr_mat - R_jj * (ajjm1 + Zj[1, 1]) * ajjm1 # update Rij
 
         # Convert Rij (i.e. Covariance matrix) to Correlation matrix
         cov2corr <- matrix(sqrt(diag(tRij)), ncol = 1)
@@ -71,7 +64,7 @@ logcdf_ME <- function(Zj, Corr_mat) {
         # Cutoff those dimensions if they are too low to be evaluated
         cutoff <- 38
 
-        Zj[Zj > cutoff]  <- cutoff
+        Zj[Zj > cutoff] <- cutoff
         Zj[Zj < -cutoff] <- -cutoff
 
         # Evaluate jj's probability
@@ -85,22 +78,19 @@ logcdf_ME <- function(Zj, Corr_mat) {
 
         # Overall probability
         log_res <- log_res + log(cdf_val)
-
     }
 
     return(log_res)
-
 }
 
 
 dim_red4 <- function(Sigma, Gamma, nu, Delta, cut_tol) {
-
     # Reduces the dimension of csn
     # according to the correlations of the conditions
 
     P <- rbind(
-      cbind(Sigma, Sigma %*% t(Gamma)),
-      cbind(Gamma %*% Sigma, Delta + Gamma %*% Sigma %*% t(Gamma))
+        cbind(Sigma, Sigma %*% t(Gamma)),
+        cbind(Gamma %*% Sigma, Delta + Gamma %*% Sigma %*% t(Gamma))
     )
 
     P <- 0.5 * (P + t(P))
@@ -108,30 +98,27 @@ dim_red4 <- function(Sigma, Gamma, nu, Delta, cut_tol) {
     len <- dim(Sigma)[1]
     len2 <- dim(P)[1]
 
+    tryCatch(
+        {
+            stdnrd <- 1 / sqrt(diag(P))
 
-    tryCatch({
+            if (length(stdnrd) > 1) {
+                stdnrd <- diag(stdnrd)
+            }
 
-        stdnrd <- 1 / sqrt(diag(P))
+            Pcorr <- abs(stdnrd %*% P %*% stdnrd)
+        },
+        error = function(codn) {
+            ret_list <- list(
+                "Sigma" = matrix(0),
+                "Gamma" = matrix(0),
+                "nu" = matrix(0),
+                "Delta" = matrix(0)
+            )
 
-        if (length(stdnrd) > 1) {
-            stdnrd <- diag(stdnrd)
+            return(ret_list)
         }
-
-        Pcorr <- abs(stdnrd %*% P %*% stdnrd)
-
-    },
-    error = function(codn) {
-
-        ret_list <- list(
-          "Sigma" = matrix(0),
-          "Gamma" = matrix(0),
-          "nu" = matrix(0),
-          "Delta" = matrix(0)
-        )
-
-        return(ret_list)
-
-    })
+    )
 
 
     Pcorr <- Pcorr - diag(Inf, nrow = len2)
@@ -154,20 +141,19 @@ dim_red4 <- function(Sigma, Gamma, nu, Delta, cut_tol) {
     Delta <- Delta[, logi2, drop = FALSE]
 
     if (dim(Delta)[1] == 0) {
-            Gamma <- matrix(0, nrow = 1, ncol = len)
-            nu <- 0
-            Delta <- 1
+        Gamma <- matrix(0, nrow = 1, ncol = len)
+        nu <- 0
+        Delta <- 1
     }
 
     ret_list <- list(
-      "Sigma" = Sigma,
-      "Gamma" = Gamma,
-      "nu" = nu,
-      "Delta" = Delta
+        "Sigma" = Sigma,
+        "Gamma" = Gamma,
+        "nu" = nu,
+        "Delta" = Delta
     )
 
     return(ret_list)
-
 }
 
 
@@ -191,9 +177,7 @@ kalman_csn <- function(
     cut_tol = 1e-2,
     eval_lik = TRUE,
     ret_pred_filt = FALSE,
-    logcdfmvna_fct = logcdf_ME
-) {
-
+    logcdfmvna_fct = logcdf_ME) {
     # -------------------------------------------------------------------------
     # Evaluates log-likelihood value of linear state space model
     # with csn distributed innovations and normally distributed noise:
@@ -376,32 +360,32 @@ kalman_csn <- function(
     filt <- NaN
 
     if (ret_pred_filt) {
-      pred <- list(
-          "mu" = list(),
-          "Sigma" = list(),
-          "Gamma" = list(),
-          "nu" = list(),
-          "Delta" = list()
-      )
+        pred <- list(
+            "mu" = list(),
+            "Sigma" = list(),
+            "Gamma" = list(),
+            "nu" = list(),
+            "Delta" = list()
+        )
 
-      filt <- list(
-          "mu" = list(),
-          "Sigma" = list(),
-          "Gamma" = list(),
-          "nu" = list(),
-          "Delta" = list()
-      )
+        filt <- list(
+            "mu" = list(),
+            "Sigma" = list(),
+            "Gamma" = list(),
+            "nu" = list(),
+            "Delta" = list()
+        )
     }
 
     # vector of likelihood contributions
     log_lik_t <- matrix(0, nrow = obs_nbr, ncol = 1)
-    log_lik <- -Inf  # default value of log likelihood
+    log_lik <- -Inf # default value of log likelihood
 
     for (t in 1:obs_nbr) {
-
         # Auxiliary matrices
         Gamma_tm1_tm1_X_Sigma_tm1_tm1 <- Gamma_tm1_tm1 %*% Sigma_tm1_tm1
-        Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT <- Gamma_tm1_tm1_X_Sigma_tm1_tm1 %*% t(G)
+        Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT <- Gamma_tm1_tm1_X_Sigma_tm1_tm1 %*%
+            t(G)
 
 
         # Prediction step
@@ -444,7 +428,7 @@ kalman_csn <- function(
             cbind(t(Delta12_t_tm1), Delta22_t_tm1)
         )
 
-        Delta_t_tm1 <- 0.5 * (Delta_t_tm1 + t(Delta_t_tm1))  # ensure symmetry
+        Delta_t_tm1 <- 0.5 * (Delta_t_tm1 + t(Delta_t_tm1)) # ensure symmetry
 
         y_predicted <- F %*% mu_t_tm1 + mu_eps
 
@@ -452,7 +436,6 @@ kalman_csn <- function(
 
         # Cutting redundant skewness dimension to speed up filtering
         if (cut_tol > 0) {
-
             red_res <- dim_red4(
                 Sigma_t_tm1, Gamma_t_tm1, nu_t_tm1, Delta_t_tm1, cut_tol
             )
@@ -461,55 +444,41 @@ kalman_csn <- function(
             Gamma_t_tm1 <- red_res$Gamma
             nu_t_tm1 <- red_res$nu
             Delta_t_tm1 <- red_res$Delta
-
         }
 
         # Kalman gains
         Omega <- F %*% Sigma_t_tm1 %*% t(F) + Sigma_eps
-        Omega <- 0.5 * (Omega + t(Omega))  # ensure symmetry
+        Omega <- 0.5 * (Omega + t(Omega)) # ensure symmetry
 
         badly_conditioned_Omega <- FALSE
 
         sig <- matrix(sqrt(diag(Omega)), ncol = 1)
 
         if (rescale_prediction_error_covariance) {
-
-            if (any(diag(Omega) < kalman_tol)
-            || rcond(Omega / (sig %*% t(sig))) < kalman_tol) {
-
+            if (any(diag(Omega) < kalman_tol) ||
+                rcond(Omega / (sig %*% t(sig))) < kalman_tol) {
                 badly_conditioned_Omega <- TRUE
 
                 warning("badly_conditioned_Omega")
-
             }
-
         } else {
-
             if (rcond(Omega) < kalman_tol) {
-
-                if (any(diag(Omega) < kalman_tol)
-                || rcond(Omega / (sig %*% t(sig))) < kalman_tol) {
-
+                if (any(diag(Omega) < kalman_tol) ||
+                    rcond(Omega / (sig %*% t(sig))) < kalman_tol) {
                     badly_conditioned_Omega <- TRUE
 
                     warning("badly_conditioned_Omega")
-
                 } else {
-
                     rescale_prediction_error_covariance <- 1
                     warning(paste(
                         "set rescale_prediction_error_covariance",
                         "to 1"
                     ))
-
                 }
-
             }
-
         }
 
         if (badly_conditioned_Omega) {
-
             if (!all(abs(Omega) < kalman_tol)) {
                 # Use univariate filter
                 # (will remove observations with zero variance prediction error)
@@ -522,25 +491,20 @@ kalman_csn <- function(
             log_lik <- NaN
 
             return(list("log_lik" = log_lik, "pred" = pred, "filt" = filt))
-
         }
 
         Omega_singular <- FALSE
 
         if (rescale_prediction_error_covariance) {
-
             log_detOmega <- log(det(Omega / (sig %*% t(sig)))) + 2 * sum(log(sig))
 
             invOmega <- solve(Omega / (sig %*% t(sig))) / (sig %*% t(sig))
 
             rescale_prediction_error_covariance <- rescale_prediction_error_covariance0
-
         } else {
-
             log_detOmega <- log(det(Omega))
 
             invOmega <- solve(Omega)
-
         }
 
         K_Gauss <- Sigma_t_tm1 %*% t(F) %*% invOmega
@@ -549,7 +513,6 @@ kalman_csn <- function(
 
         # log-likelihood contributions
         if (eval_lik) {
-
             # The conditional distribution of y[t] given y[t-1] is:
             # (y[t] | y[t-1]) ~ CSN(mu_y, Sigma_y, Gamma_y, nu_y, Delta_y)
             # = (
@@ -645,13 +608,12 @@ kalman_csn <- function(
             log_lik_t[t] <- (
                 -log_gaussian_cdf_bottom
                 + log_gaussian_pdf
-                + log_gaussian_cdf_top
+                    + log_gaussian_cdf_top
             )
 
             if (is.nan(log_lik_t[t])) {
                 stop(sprintf("Likelihood contribution is NaN at iteration = %i!", t))
             }
-
         }
 
 
@@ -666,8 +628,8 @@ kalman_csn <- function(
 
         Delta_t_t <- Delta_t_tm1
 
-        Sigma_t_t <- 0.5 * (Sigma_t_t + t(Sigma_t_t))  # ensure symmetry
-        Delta_t_t <- 0.5 * (Delta_t_t + t(Delta_t_t))  # ensure symmetry
+        Sigma_t_t <- 0.5 * (Sigma_t_t + t(Sigma_t_t)) # ensure symmetry
+        Delta_t_t <- 0.5 * (Delta_t_t + t(Delta_t_t)) # ensure symmetry
 
         # assign for next time step
         mu_tm1_tm1 <- mu_t_t
@@ -677,7 +639,6 @@ kalman_csn <- function(
         Delta_tm1_tm1 <- Delta_t_t
 
         if (ret_pred_filt) {
-
             # save the parameters of the predicted and filtered csn states
             pred$mu[[t]] <- mu_t_tm1
             pred$Sigma[[t]] <- Sigma_t_tm1
@@ -690,9 +651,7 @@ kalman_csn <- function(
             filt$Gamma[[t]] <- Gamma_t_t
             filt$nu[[t]] <- nu_t_t
             filt$Delta[[t]] <- Delta_t_t
-
         }
-
     }
 
     if (Omega_singular) {
@@ -706,5 +665,4 @@ kalman_csn <- function(
     log_lik <- sum(log_lik_t)
 
     return(list("log_lik" = log_lik, "pred" = pred, "filt" = filt))
-
 }
