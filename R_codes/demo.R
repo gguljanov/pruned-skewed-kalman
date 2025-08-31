@@ -50,28 +50,44 @@ for (ii in seq(obs_nbr)) {
     data_Y[, ii] <- F_mat %*% state_X + eps_vec[, ii, drop = FALSE]
 }
 
-# Estimate the model
-res <- kalman_csn(
-    Y = data_Y,
-    mu_tm1_tm1 = diag(0, 2, 1),
-    Sigma_tm1_tm1 = matrix(c(10, 0, 0, 10), ncol = 2),
-    Gamma_tm1_tm1 = diag(0, 2, 2),
-    nu_tm1_tm1 = diag(0, 2, 1),
-    Delta_tm1_tm1 = diag(1, 2, 2),
-    G = matrix(c(0.7, -0.5, 0.3, 0.9), ncol = 2, byrow = TRUE),
-    R = diag(1, 2, 2),
-    F = matrix(c(0.3, 1, 2, -5), ncol = 2, byrow = TRUE),
-    mu_eta = diag(0, 2, 1),
-    Sigma_eta = diag(1, 2, 2),
-    Gamma_eta = matrix(c(0.5, 1.2, -1.8, 2), ncol = 2, byrow = TRUE),
-    nu_eta = diag(0, 2, 1),
-    Delta_eta = diag(1, 2, 2),
-    mu_eps = diag(0, 2, 1),
-    Sigma_eps = diag(1, 2, 2),
-    cut_tol = 1e-1,
-    eval_lik = TRUE,
-    ret_pred_filt = FALSE,
-    logcdfmvna_fct = logcdf_ME
+# Function to be given to the optimization procedure
+neg_log_likeli <- function(param) {
+    Gamma_eta <- matrix(c(param[1], param[2], -1.8, 2), ncol = 2, byrow = TRUE)
+
+    filter_res <- kalman_csn(
+        Y = data_Y,
+        mu_tm1_tm1 = diag(0, 2, 1),
+        Sigma_tm1_tm1 = matrix(c(10, 0, 0, 10), ncol = 2),
+        Gamma_tm1_tm1 = diag(0, 2, 2),
+        nu_tm1_tm1 = diag(0, 2, 1),
+        Delta_tm1_tm1 = diag(1, 2, 2),
+        G = matrix(c(0.7, -0.5, 0.3, 0.9), ncol = 2, byrow = TRUE),
+        R = diag(1, 2, 2),
+        F = matrix(c(0.3, 1, 2, -5), ncol = 2, byrow = TRUE),
+        mu_eta = diag(0, 2, 1),
+        Sigma_eta = diag(1, 2, 2),
+        Gamma_eta = Gamma_eta,
+        nu_eta = diag(0, 2, 1),
+        Delta_eta = diag(1, 2, 2),
+        mu_eps = diag(0, 2, 1),
+        Sigma_eps = diag(1, 2, 2),
+        cut_tol = 1e-1,
+        eval_lik = TRUE,
+        ret_pred_filt = FALSE,
+        logcdfmvna_fct = logcdf_ME
+    )
+
+    # Negative log-likelihood
+    return(-1 * filter_res$log_lik)
+}
+
+print(neg_log_likeli(c(0.5, 1.2)))
+
+# Minimize the negative log-likelihood to estimate the parameter
+optim_res <- optim(
+    par = c(-0.5, -1.2),
+    fn = neg_log_likeli,
+    method = "Nelder-Mead"
 )
 
-print(res$log_lik)
+print(optim_res)
