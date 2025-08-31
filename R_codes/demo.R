@@ -55,15 +55,15 @@ neg_log_likeli <- function(param) {
     Gamma_eta <- matrix(c(param[1], param[2], -1.8, 2), ncol = 2, byrow = TRUE)
 
     filter_res <- kalman_csn(
-        Y = data_Y,
+        data_Y = data_Y,
         mu_tm1_tm1 = diag(0, 2, 1),
         Sigma_tm1_tm1 = matrix(c(10, 0, 0, 10), ncol = 2),
         Gamma_tm1_tm1 = diag(0, 2, 2),
         nu_tm1_tm1 = diag(0, 2, 1),
         Delta_tm1_tm1 = diag(1, 2, 2),
-        G = matrix(c(0.7, -0.5, 0.3, 0.9), ncol = 2, byrow = TRUE),
-        R = diag(1, 2, 2),
-        F = matrix(c(0.3, 1, 2, -5), ncol = 2, byrow = TRUE),
+        G_mat = matrix(c(0.7, -0.5, 0.3, 0.9), ncol = 2, byrow = TRUE),
+        R_mat = diag(1, 2, 2),
+        F_mat = matrix(c(0.3, 1, 2, -5), ncol = 2, byrow = TRUE),
         mu_eta = diag(0, 2, 1),
         Sigma_eta = diag(1, 2, 2),
         Gamma_eta = Gamma_eta,

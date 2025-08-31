@@ -156,15 +156,15 @@ dim_red4 <- function(Sigma, Gamma, nu, Delta, cut_tol) {
 
 
 kalman_csn <- function(
-    Y,
+    data_Y,
     mu_tm1_tm1,
     Sigma_tm1_tm1,
     Gamma_tm1_tm1,
     nu_tm1_tm1,
     Delta_tm1_tm1,
-    G,
-    R,
-    F,
+    G_mat,
+    R_mat,
+    F_mat,
     mu_eta,
     Sigma_eta,
     Gamma_eta,
@@ -180,8 +180,8 @@ kalman_csn <- function(
     # Evaluates log-likelihood value of linear state space model
     # with csn distributed innovations and normally distributed noise:
 
-    #   x[t] = G*x[t-1] + R*eta[t]  [state transition equation]
-    #   y[t] = F*x[t]   + eps[t]    [observation equation]
+    #   x[t] = G_mat*x[t-1] + R_mat*eta[t]  [state transition equation]
+    #   y[t] = F_mat*x[t]   + eps[t]    [observation equation]
     #   eta[t] ~ CSN(mu_eta, Sigma_eta, Gamma_eta, nu_eta, Delta_eta)
     #                                [innovations, shocks]
     #   eps[t] ~ N(mu_eps,Sigma_eps) [noise, measurement error]
@@ -196,7 +196,7 @@ kalman_csn <- function(
 
     # -------------------------------------------------------------------------
     # INPUTS:
-    #   - Y:
+    #   - data_Y:
     #     [y_nbr by obs_nbr]
     #     matrix with data
 
@@ -224,15 +224,15 @@ kalman_csn <- function(
     #     [skewx_dim by skewx_dim]
     #     initial value of third skewness parameter of CSN distributed states x
 
-    #   - G:
+    #   - G_mat:
     #     [x_nbr by x_nbr]
     #     state transition matrix mapping previous states to current states
 
-    #   - R:
+    #   - R_mat:
     #     [x_nbr by eta_nbr]
     #     state transition matrix mapping current innovations to current states
 
-    #   - F:
+    #   - F_mat:
     #     [y_nbr by x_nbr]
     #     observation equation matrix mapping current states into current
     #     observables
@@ -328,25 +328,25 @@ kalman_csn <- function(
     # (minimum allowed reciprocal of the matrix condition number)
     kalman_tol <- 1e-10
 
-    # 'rescale_prediction_error_covariance': rescales the prediction error
+    # 'rescale_pred_error_cov': rescales the prediction error
     # covariance in the Kalman filter to avoid badly scaled matrix
     # and reduce the probability of a switch to univariate Kalman filters
     # (which are slower). By default no rescaling is done.
-    rescale_prediction_error_covariance <- FALSE
+    rescale_pred_error_cov <- FALSE
     Omega_singular <- TRUE
-    rescale_prediction_error_covariance0 <- rescale_prediction_error_covariance
+    rescale_pred_error_cov0 <- rescale_pred_error_cov
 
     # Get dimensions
-    dimensions <- dim(F)
+    dimensions <- dim(F_mat)
     y_nbr <- dimensions[1]
     x_nbr <- dimensions[2]
-    obs_nbr <- dim(Y)[2]
+    obs_nbr <- dim(data_Y)[2]
     # skeweta_nbr <- dim(Gamma_eta)[1]
 
     # Initialize some matrices
-    mu_eta <- R %*% mu_eta
-    Sigma_eta <- R %*% Sigma_eta %*% t(R)
-    Gamma_eta <- Gamma_eta %*% solve((t(R) %*% R), t(R))
+    mu_eta <- R_mat %*% mu_eta
+    Sigma_eta <- R_mat %*% Sigma_eta %*% t(R_mat)
+    Gamma_eta <- Gamma_eta %*% solve((t(R_mat) %*% R_mat), t(R_mat))
 
     Gamma_eta_X_Sigma_eta <- Gamma_eta %*% Sigma_eta
     Delta22_common <- Delta_eta + Gamma_eta_X_Sigma_eta %*% t(Gamma_eta)
@@ -382,25 +382,23 @@ kalman_csn <- function(
     for (t in 1:obs_nbr) {
         # Auxiliary matrices
         Gamma_tm1_tm1_X_Sigma_tm1_tm1 <- Gamma_tm1_tm1 %*% Sigma_tm1_tm1
-        Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT <- Gamma_tm1_tm1_X_Sigma_tm1_tm1 %*%
-            t(G)
+        Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT <- (
+            Gamma_tm1_tm1_X_Sigma_tm1_tm1 %*% t(G_mat)
+        )
 
 
         # Prediction step
-        mu_t_tm1 <- G %*% mu_tm1_tm1 + mu_eta
+        mu_t_tm1 <- G_mat %*% mu_tm1_tm1 + mu_eta
 
-        Sigma_t_tm1 <- G %*% Sigma_tm1_tm1 %*% t(G) + Sigma_eta
+        Sigma_t_tm1 <- G_mat %*% Sigma_tm1_tm1 %*% t(G_mat) + Sigma_eta
         Sigma_t_tm1 <- 0.5 * (Sigma_t_tm1 + t(Sigma_t_tm1)) # ensure symmetry
 
         invSigma_t_tm1 <- solve(Sigma_t_tm1)
 
-        Gamma_t_tm1 <- (
-            rbind(
-                Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT,
-                Gamma_eta_X_Sigma_eta
-            )
-            %*% invSigma_t_tm1
-        )
+        Gamma_t_tm1 <- rbind(
+            Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT,
+            Gamma_eta_X_Sigma_eta
+        ) %*% invSigma_t_tm1
 
         nu_t_tm1 <- rbind(nu_tm1_tm1, nu_eta)
 
@@ -411,14 +409,11 @@ kalman_csn <- function(
                 %*% invSigma_t_tm1
                 %*% t(Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT)
         )
-        Delta22_t_tm1 <- (
-            Delta22_common
-            - Gamma_eta_X_Sigma_eta %*% invSigma_t_tm1 %*% t(Gamma_eta_X_Sigma_eta)
+        Delta22_t_tm1 <- Delta22_common - Gamma_eta_X_Sigma_eta %*% (
+            invSigma_t_tm1 %*% t(Gamma_eta_X_Sigma_eta)
         )
-        Delta12_t_tm1 <- (
-            -Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT
-            %*% invSigma_t_tm1
-                %*% t(Gamma_eta_X_Sigma_eta)
+        Delta12_t_tm1 <- -Gamma_tm1_tm1_X_Sigma_tm1_tm1_X_GT %*% (
+            invSigma_t_tm1 %*% t(Gamma_eta_X_Sigma_eta)
         )
 
         Delta_t_tm1 <- rbind(
@@ -428,9 +423,9 @@ kalman_csn <- function(
 
         Delta_t_tm1 <- 0.5 * (Delta_t_tm1 + t(Delta_t_tm1)) # ensure symmetry
 
-        y_predicted <- F %*% mu_t_tm1 + mu_eps
+        y_predicted <- F_mat %*% mu_t_tm1 + mu_eps
 
-        prediction_error <- Y[, t, drop = FALSE] - y_predicted
+        prediction_error <- data_Y[, t, drop = FALSE] - y_predicted
 
         # Cutting redundant skewness dimension to speed up filtering
         if (cut_tol > 0) {
@@ -445,14 +440,14 @@ kalman_csn <- function(
         }
 
         # Kalman gains
-        Omega <- F %*% Sigma_t_tm1 %*% t(F) + Sigma_eps
+        Omega <- F_mat %*% Sigma_t_tm1 %*% t(F_mat) + Sigma_eps
         Omega <- 0.5 * (Omega + t(Omega)) # ensure symmetry
 
         badly_conditioned_Omega <- FALSE
 
         sig <- matrix(sqrt(diag(Omega)), ncol = 1)
 
-        if (rescale_prediction_error_covariance) {
+        if (rescale_pred_error_cov) {
             if (any(diag(Omega) < kalman_tol) ||
                 rcond(Omega / (sig %*% t(sig))) < kalman_tol) {
                 badly_conditioned_Omega <- TRUE
@@ -467,9 +462,9 @@ kalman_csn <- function(
 
                     warning("badly_conditioned_Omega")
                 } else {
-                    rescale_prediction_error_covariance <- 1
+                    rescale_pred_error_cov <- 1
                     warning(paste(
-                        "set rescale_prediction_error_covariance",
+                        "set rescale_pred_error_cov",
                         "to 1"
                     ))
                 }
@@ -493,19 +488,21 @@ kalman_csn <- function(
 
         Omega_singular <- FALSE
 
-        if (rescale_prediction_error_covariance) {
-            log_detOmega <- log(det(Omega / (sig %*% t(sig)))) + 2 * sum(log(sig))
+        if (rescale_pred_error_cov) {
+            log_detOmega <- (
+                log(det(Omega / (sig %*% t(sig)))) + 2 * sum(log(sig))
+            )
 
             invOmega <- solve(Omega / (sig %*% t(sig))) / (sig %*% t(sig))
 
-            rescale_prediction_error_covariance <- rescale_prediction_error_covariance0
+            rescale_pred_error_cov <- rescale_pred_error_cov0
         } else {
             log_detOmega <- log(det(Omega))
 
             invOmega <- solve(Omega)
         }
 
-        K_Gauss <- Sigma_t_tm1 %*% t(F) %*% invOmega
+        K_Gauss <- Sigma_t_tm1 %*% t(F_mat) %*% invOmega
         K_Skewed <- Gamma_t_tm1 %*% K_Gauss
 
 
@@ -520,35 +517,34 @@ kalman_csn <- function(
             # )
             #
             # where:
-            #  mu_y    = F %*% mu_t_tm1 + mu_eps = y_predicted
-            #  Sigma_y = F %*% Sigma_t_tm1 %*% t(F) + Sigma_eps = Omega
-            #  Gamma_y = Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F)
-            #            %*% inv(F %*% Sigma_t_tm1 %*% t(F) + Sigma_eps) = K_Skewed
-            #  nu_y    = nu_t_tm1
-            #  Delta_y = Delta_t_tm1
-            #            + Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
-            #            - Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F)
-            #              %*% inv(F %*% Sigma_t_tm1 %*% t(F))
-            #              %*% F %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
-            #            + (Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F)
-            #                 %*% inv(F*Sigma_t_tm1*t(F))
-            #               - Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F)
-            #                 %*% inv(F %*% Sigma_t_tm1 %*% t(F) + Sigma_eps))
-            #              %*% F %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
-            #          = Delta_t_tm1 + (Gamma_t_tm1 - K_Skewed %*% F)
-            #            %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
+            # mu_y = F_mat %*% mu_t_tm1 + mu_eps = y_predicted
+            # Sigma_y = F_mat %*% Sigma_t_tm1 %*% t(F_mat) + Sigma_eps = Omega
+            # Gamma_y = (
+            #     Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F_mat)
+            #     %*% inv(F_mat %*% Sigma_t_tm1 %*% t(F_mat) + Sigma_eps
+            # ) = K_Skewed
+            # nu_y = nu_t_tm1
+            # Delta_y = (
+            #     Delta_t_tm1
+            #     + Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
+            #     - Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F_mat)
+            #         %*% inv(F_mat %*% Sigma_t_tm1 %*% t(F_mat))
+            #         %*% F_mat %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
+            #     + (Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F_mat)
+            #         %*% inv(F_mat*Sigma_t_tm1*t(F_mat))
+            #         - Gamma_t_tm1 %*% Sigma_t_tm1 %*% t(F_mat)
+            #         %*% inv(F_mat %*% Sigma_t_tm1 %*% t(F_mat) + Sigma_eps))
+            #         %*% F_mat %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
+            # ) = Delta_t_tm1 + (Gamma_t_tm1 - K_Skewed %*% F_mat) %*% (
+            #     Sigma_t_tm1 %*% t(Gamma_t_tm1)
+            # )
 
-            Delta_y <- (
-                Delta_t_tm1
-                + (Gamma_t_tm1 - K_Skewed %*% F) %*% Sigma_t_tm1 %*% t(Gamma_t_tm1)
+            Delta_y <- Delta_t_tm1 + (Gamma_t_tm1 - K_Skewed %*% F_mat) %*% (
+                Sigma_t_tm1 %*% t(Gamma_t_tm1)
             )
             Delta_y <- 0.5 * (Delta_y + t(Delta_y)) # ensure symmetry
 
-            # evaluate Gaussian cdfs, i.e.
-            #  - bottom one:
-            #    mvncdf(0, nu_y, Delta_y + Gamma_y %*% Sigma_y %*% t(Gamma_y))
-            #  - top one:
-            #    mvncdf(Gamma_y %*% (y[t] - mu_y), nu_y, Delta_y)
+            # evaluate Gaussian cdfs
             cdf_bottom_cov <- Delta_y + K_Skewed %*% Omega %*% t(K_Skewed)
             cdf_bottom_cov <- 0.5 * (cdf_bottom_cov + t(cdf_bottom_cov))
 
@@ -599,9 +595,9 @@ kalman_csn <- function(
             }
 
             # evaluate Gaussian pdf
-            # log_gaussian_pdf = log(mvnpdf(Y[:, t], y_predicted, Omega))
-            log_gaussian_pdf <- (const2pi
-            - 0.5 * log_detOmega - 0.5 * t(prediction_error) %*% invOmega %*% prediction_error)
+            log_gaussian_pdf <- const2pi - 0.5 * log_detOmega - 0.5 * (
+                t(prediction_error) %*% invOmega %*% prediction_error
+            )
 
             log_lik_t[t] <- (
                 -log_gaussian_cdf_bottom
@@ -610,7 +606,11 @@ kalman_csn <- function(
             )
 
             if (is.nan(log_lik_t[t])) {
-                stop(sprintf("Likelihood contribution is NaN at iteration = %i!", t))
+                error_message <- sprintf(
+                    "Likelihood contribution is NaN at iteration = %i!", t
+                )
+
+                stop(error_message)
             }
         }
 
@@ -618,7 +618,7 @@ kalman_csn <- function(
         # Filtering step
         mu_t_t <- mu_t_tm1 + K_Gauss %*% prediction_error
 
-        Sigma_t_t <- Sigma_t_tm1 - K_Gauss %*% F %*% Sigma_t_tm1
+        Sigma_t_t <- Sigma_t_tm1 - K_Gauss %*% F_mat %*% Sigma_t_tm1
 
         Gamma_t_t <- Gamma_t_tm1
 
