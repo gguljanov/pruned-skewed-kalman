@@ -1,43 +1,58 @@
-# eval_p <- matrix(c(0.2, 0.3, -0.8), ncol = 1)
-# Corr_mat <- matrix(c(1.0, 0.2, 0.3, -0.4, 1.0, -0.9, -0.5, 0.8, 1.0),
-#     ncol = 3, byrow = TRUE
-# )
-# Corr_mat <- 0.5 * (Corr_mat + t(Corr_mat))
-# print(logcdf_ME(eval_p, Corr_mat))
+# In this script, we will demonstrate how the Pruned Skewed Kalman filter
+# works, by first simulating a dataset using a skewed state space model
+# and then re-estimating the model
 
-library(R.matlab)
-
-data <- readMat("../../Skewed_lin_DSGE/Codes/test_data.mat")
-data <- t(data$y.mat)
-
-
+library(csn)
 source("skalman_filter.R")
-# res <- kalman_csn(
-#     Y = data,
-#     mu_tm1_tm1 = matrix(0),
-#     Sigma_tm1_tm1 = matrix(10),
-#     Gamma_tm1_tm1 = matrix(0),
-#     nu_tm1_tm1 = matrix(0),
-#     Delta_tm1_tm1 = matrix(1),
-#     G = matrix(0.5),
-#     R = matrix(1),
-#     F = matrix(0.3),
-#     mu_eta = matrix(0),
-#     Sigma_eta = matrix(1),
-#     Gamma_eta = matrix(0.5),
-#     nu_eta = matrix(0),
-#     Delta_eta = matrix(1),
-#     mu_eps = matrix(0),
-#     Sigma_eps = matrix(1),
-#     cut_tol = 1e-1,
-#     eval_lik = TRUE,
-#     ret_pred_filt = FALSE,
-#     logcdfmvna_fct = logcdf_ME
-# )
 
-source("skalman_filter.R")
+# Set the parameter values
+y_nbr <- 2
+obs_nbr <- 1e3
+
+G_mat <- matrix(c(0.7, -0.5, 0.3, 0.9), ncol = y_nbr, byrow = TRUE)
+R_mat <- diag(1, 2, 2)
+F_mat <- matrix(c(0.3, 1, 2, -5), ncol = y_nbr, byrow = TRUE)
+
+mu_eta <- diag(0, 2, 1)
+Sigma_eta <- diag(1, 2, 2)
+
+Gamma_eta <- matrix(c(0.5, 1.2, -1.8, 2), ncol = y_nbr, byrow = TRUE)
+nu_eta <- diag(0, 2, 1)
+Delta_eta <- diag(1, 2, 2)
+mu_eps <- diag(0, 2, 1)
+Sigma_eps <- diag(1, 2, 2)
+
+# Simulate the data
+state_X <- matrix(0, ncol = 1, nrow = y_nbr)
+data_Y <- matrix(NA, ncol = obs_nbr, nrow = y_nbr)
+
+eta_vec <- rcsn(
+    k = obs_nbr,
+    mu = drop(mu_eta),
+    sigma = Sigma_eta,
+    gamma = Gamma_eta,
+    nu = drop(nu_eta),
+    delta = Delta_eta
+)
+
+eta_vec <- t(eta_vec)
+
+standard_norm_sample <- matrix(
+    data = rnorm(n = obs_nbr, mean = mu_eps, sd = sqrt(Sigma_eps)),
+    nrow = y_nbr,
+    ncol = obs_nbr
+)
+
+eps_vec <- drop(mu_eps) + chol(Sigma_eps) %*% standard_norm_sample
+
+for (ii in seq(obs_nbr)) {
+    state_X <- G_mat %*% state_X + R_mat %*% eta_vec[, ii, drop = FALSE]
+    data_Y[, ii] <- F_mat %*% state_X + eps_vec[, ii, drop = FALSE]
+}
+
+# Estimate the model
 res <- kalman_csn(
-    Y = data,
+    Y = data_Y,
     mu_tm1_tm1 = diag(0, 2, 1),
     Sigma_tm1_tm1 = matrix(c(10, 0, 0, 10), ncol = 2),
     Gamma_tm1_tm1 = diag(0, 2, 2),
@@ -55,10 +70,8 @@ res <- kalman_csn(
     Sigma_eps = diag(1, 2, 2),
     cut_tol = 1e-1,
     eval_lik = TRUE,
-    ret_pred_filt = TRUE,
+    ret_pred_filt = FALSE,
     logcdfmvna_fct = logcdf_ME
 )
 
 print(res$log_lik)
-print(res$pred$nu[[30]])
-print(res$filt$nu[[30]])

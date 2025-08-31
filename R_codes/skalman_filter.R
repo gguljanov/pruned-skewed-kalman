@@ -1,3 +1,5 @@
+library(pracma)
+
 phip <- function(z) {
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
 
@@ -25,10 +27,6 @@ logcdf_ME <- function(Zj, Corr_mat) {
     # Corr_mat: Correlation matrix of size (len_cdf) x (len_cdf)
 
     # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
-
-    source("phip.R") # Univariate normal pdf
-    source("phid.R") # Univariate normal cdf
-    library(pracma)
 
     cutoff <- 6
 

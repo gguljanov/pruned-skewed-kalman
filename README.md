@@ -25,7 +25,7 @@ based on correlations
 `phip()`, `phid()` and `logcdf_ME()` functions are slightly modified versions 
 of `phip()`, `phid()` and `mcdfmvna_ME()` functions by @dbauer72, Dietmar Bauer, see [the repo](https://github.com/dbauer72/MaCML-MATLAB-Code).
 
-All preceding functions are used by `kalman_csn()`.
+All the functions above are used by `kalman_csn()`.
 
 
 <br>
