@@ -1,12 +1,81 @@
 using SpecialFunctions
 using LinearAlgebra
 using Distributions
+using Random
 
-# 
-# Normal PDF
-# 
+
+# === CSN Random number generator ===
+function csnRandDirect(;
+    nn<:Int64,
+    mu::Matrix{T},
+    Sigma::Matrix{T},
+    Gamma::Matrix{T},
+    nu::Matrix{T},
+    Delta::Matrix{T}
+)where T<:Real
+    """
+    Briefly:
+        Draws random numbers from CSN distribution using accept-reject method
+        from the "csn" package of R language
+    
+    Inputs:
+        nn: Scalar indicating how many numbers should be drawn
+        mu: 1st parameter of the csn distribution,
+            a colum vector of dimension (n x 1)
+        Sigma: 2nd parameter of the csn distribution,
+            var-cov matrix of dimension (n x n)
+        D: 3rd parameter of the csn distribution,
+            shape parameter or matrix of dimension (m x n)
+        nu: 4th parameter of the csn distribution,
+            a colum vector of dimension (m x 1)
+        Delta: 5th parameter of the csn distribution,
+            var-cov matrix of dimension (m x m)
+
+    Ouputs:
+        res: Output matrix of draws whose columns are vectors drawn 
+            so, the dimension is (length(mu) x n)
+
+    Literature:
+          1. "csn" package of R programming language ("rcsn" command)
+    
+    Moreover:
+    - Codes by G.Guljanov 06.09.25
+    - All the vectors should be column vectors
+    """
+
+    nu2 = -nu
+    Sigma2 = Delta + Gamma * Sigma * Gamma'
+    L = cholesky(Sigma2)
+    tt = length(nu2)
+    netije = Array{Float64}(undef, tt, nn)
+
+    StandardNormalDist = Normal()
+
+    for ii = 1:nn
+        draws = fill(-1.0, tt)
+
+        while any(draws .<= 0)
+            draws = nu2 + L.L * rand(StandardNormalDist, tt)
+        end
+
+        netije[:, ii] = draws
+    end
+
+    intm = Sigma * Gamma' / Sigma2
+    mu_new = mu .+ intm * (netije .- nu2)
+    Sigma_new = Sigma - intm * Gamma * Sigma
+    L2 = cholesky(0.5 * (Sigma_new + Sigma_new'))
+    res = mu_new + L2.L * rand(StandardNormalDist, length(mu), nn)
+
+    return res
+end
+
+
+# == Normal PDF ===
 function phip(z::T) where T<:Real
-    # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
+    """
+    Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
+    """
 
     p = ℯ^(-z^2 / 2) / √(2π) # Normal pdf
 
@@ -14,14 +83,12 @@ function phip(z::T) where T<:Real
 end
 
 
-# 
-# Normal CDF
-# 
+# === Normal Univariate CDF ===
 function phid(z::T) where T<:Real
-    # 
-    # taken from Alan Gentz procedures.
-    # 
-    # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
+    """ 
+    Taken from Alan Gentz procedures.
+    Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
+    """
 
     p = erfc(-z / √2) / 2 # Normal cdf
 
@@ -29,12 +96,16 @@ function phid(z::T) where T<:Real
 end
 
 
+# === Evaluate Multivariate Normal CDF ===
 function logcdf_ME(Zj, Corr_mat)
-    # cdf_ME  : Evaluate approximate log(CDF) according to Mendell Elston
-    # Zj : A column vector of points where CDF is evaluated, of size (len_cdf)
-    #  Corr_mat: Correlation matrix of size (len_cdf) x (len_cdf)
-    # 
-    # Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
+    """
+    Inputs
+        cdf_ME: Evaluate approximate log(CDF) according to Mendell Elston
+        Zj: A column vector of points where CDF is evaluated, of size (len_cdf)
+        Corr_mat: Correlation matrix of size (len_cdf) x (len_cdf)
+    
+    Based on MATLAB codes provided by Dietmar Bauer, Bielefeld University
+    """
 
     cutoff = 6
 
@@ -86,6 +157,7 @@ function logcdf_ME(Zj, Corr_mat)
 end
 
 
+# === Dimension reduction algorithm ===
 function dim_red4(Sigma, Gamma, nu, Delta, cut_tol)
     # Reduces the dimension of csn 
     # according to the correlations of the conditions
@@ -129,6 +201,7 @@ function dim_red4(Sigma, Gamma, nu, Delta, cut_tol)
 end
 
 
+# === Skewed Kalman Filter ===
 function (kalman_csn(;
     Y::Matrix{T},
     mu_tm1_tm1::Vector{T},
@@ -151,7 +224,6 @@ function (kalman_csn(;
     ret_pred_filt::Bool=false,
     logcdfmvna_fct::Function=logcdf_ME
 ) where T<:Real)
-
     """
     -------------------------------------------------------------------------
     Evaluate log-likelihood value of linear state space model with csn distributed innovations and normally distributed noise:
@@ -596,4 +668,4 @@ function (kalman_csn(;
     log_lik = sum(log_lik_t)
 
     return log_lik, pred, filt
-end # main function end
+end 
